@@ -1,7 +1,8 @@
+import gzip
 import requests
 from datetime import datetime
 
-
+import json
 
 client_id = "242c003436074d628bae15af629bce2f"
 client_secret = "VivOf0TQYxZ1NrjUTogJYNaEyEx2wwuj"
@@ -17,30 +18,10 @@ def create_access_token():
 
     return access_token
 
-def get_auction_house_index_working(connected_realm_id):
-    connected_realm_id = 1587
-    #namespace = 'dynamic-classic1x-eu'
-    #namespace = 'dynamic-classic-eu'
-    namespace = 'dynamic-eu'
-    locale = 'en_GB'
-    access_token = create_access_token()
-
-    #url = f'https://eu.api.blizzard.com/data/wow/connected-realm/{connected_realm_id}/auctions/index&access_token='
-    #url = "https://eu.api.blizzard.com/data/wow/connected-realm/1587/auctions?namespace=dynamic-eu&locale=en_GB&access_token="
-    url = f"https://eu.api.blizzard.com/data/wow/connected-realm/{connected_realm_id}/auctions?namespace={namespace}&locale={locale}&access_token={access_token}"
-    #url = f"https://eu.api.blizzard.com/data/wow/connected-realm/{connected_realm_id}/auctions?access_token="
-    print(url)
-    response = requests.get(url)
-    #print(response.json())
-    nr_of_auctions = len(response.json()['auctions'])
-    #print(len(response.json()))
-    print(nr_of_auctions)
-
-def get_auction_house_auctions():
+def get_auctions(connected_realm_id, auction_house_id, save_to_file=False):
     region = 'eu'
     namespace = 'dynamic-classic1x-eu'
     locale = 'en_US'
-    auction_house_id = 2 # alliance auction house
     access_token = create_access_token()
 
     url = f"https://{region}.api.blizzard.com/data/wow/connected-realm/{connected_realm_id}/auctions/{auction_house_id}?namespace={namespace}&locale={locale}&access_token={access_token}"
@@ -49,25 +30,30 @@ def get_auction_house_auctions():
     response = requests.get(url)
     #print(response.json())
 
-    auctions = response.json()['auctions']
+    auctions = response.json()#['auctions']
     nr_of_auctions = len(auctions)
     print(nr_of_auctions)
+
+    if save_to_file:
+        save_json_to_file_compressed(auctions)
+        #save_json_to_file(auctions)
+
     return auctions
 
 
-def get_auction_house_id(connected_realm_id):
+def get_auction_house_ids(connected_realm_id: int):
     region = 'eu'
     namespace = 'dynamic-classic1x-eu'
-    locale = 'en_GB'
+    locale = 'en_US'
     access_token = create_access_token()
 
     url = f"https://{region}.api.blizzard.com/data/wow/connected-realm/{connected_realm_id}/auctions/index?namespace={namespace}&locale={locale}&access_token={access_token}"
 
     print(url)
     response = requests.get(url)
-    auction_house_id = response.json()
+    auction_house_ids_respons = response.json()
     #print(response.json())
-    return auction_house_id
+    return auction_house_ids_respons
 
 def get_item_name(item_id):
     region = 'eu'
@@ -81,9 +67,10 @@ def get_item_name(item_id):
     return item_name
 
 def get_server_id(server_name):
-    #https://eu.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-eu&realms.name.en_US=kazzak&access_token=YOUR_TOKEN
-
-    url = f"https://eu.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-classic1x-eu&realms.name.en_US={server_name}&access_token="
+    region = 'eu'
+    namespace = 'dynamic-classic1x-eu'
+    locale = 'en_US'
+    url = f"https://{region}.api.blizzard.com/data/wow/search/connected-realm?namespace={namespace}&realms.name.en_US={server_name}&access_token="
     access_token = create_access_token()
     response = requests.get(url + access_token)
     server_id = response.json()['results'][0]['data']['id']
@@ -111,12 +98,37 @@ def analyze_auctions(auctions):
 
     return analyzed_auctions
 
+def save_json_to_file_compressed(json_data):
+    file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json.gz'
+    json_str = json.dumps(json_data)
+    with gzip.open(file_name, 'wb') as f:
+        f.write(json_str.encode('utf-8'))
+
+def read_json_from_file_compressed(file_name):
+    with gzip.open(file_name, 'rb') as f:
+        json_str = f.read().decode('utf-8')
+
+    data = json.loads(json_str)
+    return data
+
+def save_json_to_file(json_data):
+    file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json'
+    with open(file_name, 'w') as outfile:
+        json.dump(json_data, outfile)
+
+def read_json_from_file(file_name):
+    with open(file_name) as json_file:
+        data = json.load(json_file)
+    return data
 
 if __name__ == '__main__':
-    connected_realm_id = get_server_id("stitches")
-    auction_house_id = get_auction_house_id(connected_realm_id)
-    auctions = get_auction_house_auctions()
+    #connected_realm_id = get_server_id("stitches")
+    #auction_house_ids_respons = get_auction_house_ids(connected_realm_id)
+    connected_realm_id = 5220 # stitches eu hardcore realm id
+    auction_house_id = 2 # alliance auction house id
+    get_auctions(connected_realm_id, auction_house_id, save_to_file=True)
+
+    #auctions = read_json_from_file_compressed('auctions_2023_10_27_17_39_01.json.gz')
     #item_name = get_item_name(10548)
-    analyze_auctions = analyze_auctions(auctions)
-    print(analyze_auctions)
-    # {time: xx:xx, auctions: [{item_id: {item_name: name, quantity: 0, price: 0}, ...}, ...]}
+    #analyze_auctions = analyze_auctions(auctions)
+    #print(analyze_auctions)
