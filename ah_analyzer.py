@@ -56,7 +56,7 @@ class Money:
 class AhAnalyzer:
 
     auctions_info = dict() # {item_idx: {time_stamp: {unit_prices:[x,y,z], quantities:[x,y,z], min_unit_price:x, median_unit_price:y, max_unit_price:z }}
-
+    time_stamps = []
     def __init__(self):
         self.read_responses()
         self.calculate_item_statistics()
@@ -70,6 +70,7 @@ class AhAnalyzer:
             print("Processing file: ", file_name)
             dt = datetime.strptime(file_name, "auctions_%Y_%m_%d_%H_%M_%S.json.gz")
             time_stamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+            self.time_stamps.append(time_stamp)
             file_path = os.path.join(data_directory, file_name)
             response = read_json_from_file_compressed(file_path)
             auctions = response['auctions']
@@ -81,6 +82,7 @@ class AhAnalyzer:
         auction_house_id = 2 # alliance auction house id
         latest_auctions = ah_grinder.get_auctions(connected_realm_id=connected_realm_id, auction_house_id=auction_house_id, save_response=False)
         time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.time_stamps.append(time_stamp)
         print("getting latest auctions: ", time_stamp)
         self.add_auction_info(time_stamp, latest_auctions)
 
@@ -135,7 +137,6 @@ class AhAnalyzer:
             if min(item_quantities) > min_quantity:
                 item_ids.append(item_id)
 
-
         # get items statistics
         items_score = []
         for item_id in item_ids:
@@ -145,18 +146,15 @@ class AhAnalyzer:
                 min_price = self.auctions_info[item_id][time_stamp]['min_unit_price']
                 min_prices.append(min_price)
 
-
             max_min_price = max(min_prices)
             min_min_price = min(min_prices)
             median_min_price = statistics.median(min_prices)
 
             # latest price
             latest_time_stamp = max(self.auctions_info[item_id].keys())
+            self.auctions_info[item_id]['latest_time_stamp'] = latest_time_stamp
             latest_min_price = self.auctions_info[item_id][latest_time_stamp]['min_unit_price']
-            # self.auctions_info[item_id]['latest_min_unit_price'] = latest_min_price
-            #fresh_min_price = self.auctions_info[item_id]['fresh_min_unit_price']
 
-            #score = max_min_price - median_min_price
             score = median_min_price - latest_min_price
             items_score.append((item_id, score))
 
@@ -178,8 +176,9 @@ class AhAnalyzer:
             median_min_price = str(Money(self.auctions_info[item_id]['median_min_unit_price']))
             max_min_price = str(Money(self.auctions_info[item_id]['max_min_unit_price']))
 
-            latest_time_stamp = max(self.auctions_info[item_id].keys())
-            latest_min_price = str(Money(self.auctions_info[item_id][latest_time_stamp]))
+            # get the latest time stamp in the specified format
+            latest_time_stamp = self.auctions_info[item_id]['latest_time_stamp']
+            latest_min_price = str(Money(self.auctions_info[item_id][latest_time_stamp]['min_unit_price']))
             score = str(Money(score))
             print(header_format.format(item_name, score, latest_min_price, median_min_price, max_min_price))
 
@@ -193,10 +192,11 @@ if __name__ == '__main__':
     ah_analyzer.analyze_auctions()
 
         # TODO
-        # use pandas to show the info instead. better print etc
+        # use pandas to store auction info instead of a dict.
+        # each line in the pandas dataframe is an auction with columns as info
+        # then we can create 
         # implement a function to get the item id from an item name and get its statistics
-        # sperate the ah-grinder class and the ah-analyzer to two seperate classes
-        # create a git repo that the raspberry pi can pull from
+        # make the raspberry pi able to pull from your git repo
         # the command for copying from the pi is
         #  scp -n pi@raspberrypi.local:~/auctions* data2/.
         # the -n flag does so that existing files are not overwritten
