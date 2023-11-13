@@ -1,4 +1,6 @@
+import csv
 import gzip
+import time
 import requests
 from datetime import datetime
 import json
@@ -32,18 +34,15 @@ class AhGrinder:
 
         print(url)
         response = requests.get(url)
-        #print(response.json())
 
         response_json = response.json()
-        auctions = response_json['auctions']
-        #nr_of_auctions = len(auctions)
-        #print(nr_of_auctions)
+        # auctions = response_json['auctions']
 
         if save_response:
             save_json_to_file_compressed(response_json)
             #save_json_to_file(auctions)
 
-        return auctions
+        return response
 
 
     def get_auction_house_ids(self, connected_realm_id: int) -> dict:
@@ -54,7 +53,6 @@ class AhGrinder:
         print(url)
         response = requests.get(url)
         auction_house_ids_respons = response.json()
-        #print(response.json())
         return auction_house_ids_respons
 
     def get_server_id(self, server_name: str) -> int:
@@ -66,32 +64,97 @@ class AhGrinder:
         print(server_id)
         return server_id
 
-def save_json_to_file_compressed(json_data):
-    file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json.gz'
+    def get_item_name(self, item_id: int) -> str:
+        namespace = 'static-classic-eu'
+        locale = 'en_US'
+        url = f"https://{self.region}.api.blizzard.com/data/wow/item/{item_id}?namespace={namespace}&locale={locale}&access_token={self.access_token}"
+        response = requests.get(url)
+        item_name= response.json()['name']
+        return item_name
+
+    def get_item_id(self, name: str) -> int:
+        namespace = 'static-classic-eu'
+        url = f"https://{self.region}.api.blizzard.com/data/wow/search/item?namespace={namespace}&name.en_US={name}&access_token={self.access_token}"
+        response = requests.get(url)
+        # there may be several results, but we just take the first one
+        item_id = response.json()['results'][0]['data']['id']
+        return item_id
+
+    def get_item_info(self, item_id: int) -> dict:
+        namespace = 'static-classic-eu'
+        locale = 'en_US'
+        url = f"https://{self.region}.api.blizzard.com/data/wow/item/{item_id}?namespace={namespace}&locale={locale}&access_token={self.access_token}"
+        response = requests.get(url)
+        item_info = response.json()
+        #name = item_info['name']
+        #sell_price = item_info['sell_price']
+        return item_info
+
+def save_json_to_file_compressed(json_data, file_name=None):
+    if not file_name:
+        file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json.gz'
     json_str = json.dumps(json_data)
     with gzip.open(file_name, 'wb') as f:
         f.write(json_str.encode('utf-8'))
 
-def save_json_to_file(json_data):
-    file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json'
+def save_json_to_file(json_data, file_name=None):
+    if not file_name:
+        file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json'
     with open(file_name, 'w') as outfile:
-        json.dump(json_data, outfile)
+        json.dump(json_data, outfile, indent=4)
 
-def get_item_name(item_id: int) -> str:
-    region = 'eu'
-    namespace = 'static-classic-eu'
-    locale = 'en_US'
-    access_token = create_access_token()
-    url = f"https://{region}.api.blizzard.com/data/wow/item/{item_id}?namespace={namespace}&locale={locale}&access_token={access_token}"
-    response = requests.get(url)
-    item_name= response.json()['name']
-    #print(response.json())
-    return item_name
+def read_first_column(file_path):
+    result_list = []
+    with open(file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for row in csv_reader:
+            # Assuming you want to ignore the header row
+            # If your CSV file doesn't have a header, you can remove this condition
+            if csv_reader.line_num == 1:
+                continue
+            # Append the first column (index 0) to the result list
+            result_list.append(row[0])
+    return result_list
+
+def get_all_item_info():
+
+# these item ids were shit for some reason.
+# i.e. i coulld get a response from the blizzard api
+# ['7748', '2441', '17968', '14479', '1024', '11556', '6987', '14477', '16999', '18000', '14505', '18005', '12400', '17733', '14478', '11555', '14473', '14504', '18401', '11554', '18001', '14472', '4111', '1167', '1166', '2133', '14500', '1193', '14491', '8964', '18566', '2444', '4851', '9602', '7678', '11546', '11553', '18513', '14480', '16057', '14485', '2443', '1255', '9186', '17782', '4110', '2377', '14484', '11558', '11559', '14495', '1027', '18489', '2442', '18565', '11545', '7809', '128', '14498', '11548', '5140', '14481', '11549', '11547', '19760', '11550', '3034', '0', '2499', '11364', '11551', '997', '11552', '5105', '11557', '14469']
+
+    ah_grinder = AhGrinder()
+    # read all the item ids from the file in items_id_and_name.csv
+    # make a set out of this list
+    item_ids = set(read_first_column('items_id_and_name.csv'))
+    item_info = {}
+    shitty_item_ids = []
+    for i, item_id in enumerate(item_ids):
+        item = ah_grinder.get_item_info(item_id)
+        try:
+            item_info[item_id] = {}
+            item_info[item_id]['name'] = item['name']
+            item_info[item_id]['sell_price'] = item['sell_price']
+        except:
+            print(f"shitty item_id: {item_id}")
+            shitty_item_ids.append(item_id)
+
+        #time.sleep(1/1000)
+        print(i)
+        # if i > 100:
+        #     break
+    # save the item info to a file as json
+    print(shitty_item_ids)
+    save_json_to_file(item_info, file_name='item_info.json')
 
 if __name__ == '__main__':
     ah_grinder = AhGrinder()
     #connected_realm_id = ah_grinder.get_server_id("stitches")
     #auction_house_ids_respons = ah_grinder.get_auction_house_ids(connected_realm_id)
-    connected_realm_id = 5220 # stitches eu hardcore realm id
-    auction_house_id = 2 # alliance auction house id
-    auctions = ah_grinder.get_auctions(connected_realm_id, auction_house_id, save_response=True)
+    # connected_realm_id = 5220 # stitches eu hardcore realm id
+    # auction_house_id = 2 # alliance auction house id
+    # response = ah_grinder.get_auctions(connected_realm_id, auction_house_id, save_response=True)
+    # response_json = response.json()
+    # auctions = response_json['auctions']
+    #item_id = ah_grinder.get_item_id("Thunderfury")
+
+    get_all_item_info()
