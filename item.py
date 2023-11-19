@@ -25,6 +25,8 @@ class ItemStat:
 
         self.name: str = None
         self.sell_price: int = None # the price at which the item is sold to a vendor
+        self.quality: str = None
+        self.class_name: str = None
 
     def calculate_statistics(self):
         for time_stamp in self.auctions:

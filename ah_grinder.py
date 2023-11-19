@@ -104,7 +104,7 @@ class AhGrinder:
         print("problematic responses:")
         print(strange_item_jsons.keys())
         print("saving to file: item_responses.json.gz")
-        save_json_to_file_compressed(item_jsons, file_name='item_jsons.json.gz')
+        save_json_to_file_compressed(item_jsons, file_name='item_responses.json.gz')
         pass
 
 
