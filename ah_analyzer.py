@@ -1,4 +1,3 @@
-
 import re
 import os
 from datetime import datetime
@@ -13,11 +12,27 @@ class AhAnalyzer:
     item_stats: dict[int, ItemStat] = {} # item_id -> ItemStat
 
     def __init__(self):
-        self.read_historic_responses()
-        self.get_latest_response()
+        # first read information about all items and create the item_stats dictionary
+        # then read all the auctions and add the auction info.
+        # then calculate the item statistics
+
+
+        self.read_historic_auctions()
+        self.get_latest_auctions()
         self.create_item_statistics()
 
-    def read_historic_responses(self):
+    def read_item_info(self):
+        item_responses = read_json_from_file_compressed("item_responses.json.gz")
+        for item_id, item_response in item_responses.items():
+            item = ItemStat()
+            item.item_id = item_id
+            item.sell_price = item_response['sell_price']
+            item.name = item_response['name']
+            item.quality = item_response['quality']['type']
+            item.class_name = item_response['item_class']['name']
+            self.item_stats[item_id] = item
+
+    def read_historic_auctions(self):
         data_directory = os.path.abspath('./data')
         json_gz_files = get_data_file_names(data_directory)
         # it is important that json_gz_files is sorted, last date at the end
@@ -31,7 +46,7 @@ class AhAnalyzer:
             auctions = response['auctions']
             self.add_auction_info(time_stamp, auctions)
 
-    def get_latest_response(self):
+    def get_latest_auctions(self):
         time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print("getting latest auctions: ", time_stamp)
         ah_grinder = AhGrinder()
@@ -41,8 +56,8 @@ class AhAnalyzer:
         response_json = response.json()
         latest_auctions = response_json['auctions']
         print("last modified: ", response.headers['last-modified'])
+        # TODO: instead of printing time it was last modified print how many min ago that was
         self.add_auction_info(time_stamp, latest_auctions)
-
 
     def add_auction_info(self, time_stamp: str, auctions: dict):
         for auction in auctions:
@@ -75,8 +90,6 @@ class AhAnalyzer:
         """
         Read preprocessed api calls for each item and set and calculate the item statistics.
         """
-        # read preprocessed api calls for all icontain more item information
-        # such as the sell price and the item name
         item_responses = read_json_from_file_compressed("item_responses.json.gz")
 
         for item_id, item in self.item_stats.items():

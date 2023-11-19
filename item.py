@@ -23,8 +23,9 @@ class ItemStat:
         self.score: int = None
         self.score2: int = None
 
+        # constant item information
         self.name: str = None
-        self.sell_price: int = None # the price at which the item is sold to a vendor
+        self.sell_price: int = None
         self.quality: str = None
         self.class_name: str = None
 
