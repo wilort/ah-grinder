@@ -1,10 +1,6 @@
-import csv
-import gzip
-import time
 import requests
-from datetime import datetime
-import json
 from client_secrets import client_id, client_secret
+from utils import save_json_to_file, save_json_to_file_compressed, read_first_column
 
 def create_access_token() -> str:
 
@@ -40,7 +36,6 @@ class AhGrinder:
 
         if save_response:
             save_json_to_file_compressed(response_json)
-            #save_json_to_file(auctions)
 
         return response
 
@@ -85,36 +80,33 @@ class AhGrinder:
         locale = 'en_US'
         url = f"https://{self.region}.api.blizzard.com/data/wow/item/{item_id}?namespace={namespace}&locale={locale}&access_token={self.access_token}"
         response = requests.get(url)
-        item_info = response.json()
+        #item_info = response.json()
         #name = item_info['name']
         #sell_price = item_info['sell_price']
-        return item_info
+        #return item_info
+        return response
 
-def save_json_to_file_compressed(json_data, file_name=None):
-    if not file_name:
-        file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json.gz'
-    json_str = json.dumps(json_data)
-    with gzip.open(file_name, 'wb') as f:
-        f.write(json_str.encode('utf-8'))
+    def get_all_item_info(self):
+        item_jsons = {}
+        strange_item_jsons = {}
+        item_ids = set(read_first_column('items_id_and_name.csv'))
+        #item_ids = range(5205,5206)
+        for i, item_id in enumerate(item_ids):
+            print(i, item_id)
+            item_response = self.get_item_info(item_id)
+            if item_response.status_code == 200:
+                item_jsons[item_id] = item_response.json()
+            elif item_response.status_code == 404:
+                continue # there is no item with this item_id
+            else:
+                strange_item_jsons[item_id] = item_response
 
-def save_json_to_file(json_data, file_name=None):
-    if not file_name:
-        file_name = 'auctions_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json'
-    with open(file_name, 'w') as outfile:
-        json.dump(json_data, outfile, indent=4)
+        print("problematic responses:")
+        print(strange_item_jsons.keys())
+        print("saving to file: item_responses.json.gz")
+        save_json_to_file_compressed(item_jsons, file_name='item_jsons.json.gz')
+        pass
 
-def read_first_column(file_path):
-    result_list = []
-    with open(file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)
-        for row in csv_reader:
-            # Assuming you want to ignore the header row
-            # If your CSV file doesn't have a header, you can remove this condition
-            if csv_reader.line_num == 1:
-                continue
-            # Append the first column (index 0) to the result list
-            result_list.append(row[0])
-    return result_list
 
 def get_all_item_info():
 
@@ -146,6 +138,11 @@ def get_all_item_info():
     print(shitty_item_ids)
     save_json_to_file(item_info, file_name='item_info.json')
 
+
+
+
+    save_json_to_file(item_responses, file_name='item_responses.json')
+
 if __name__ == '__main__':
     ah_grinder = AhGrinder()
     #connected_realm_id = ah_grinder.get_server_id("stitches")
@@ -157,4 +154,5 @@ if __name__ == '__main__':
     # auctions = response_json['auctions']
     #item_id = ah_grinder.get_item_id("Thunderfury")
 
-    get_all_item_info()
+    #get_all_item_info()
+    ah_grinder.get_all_item_info()
