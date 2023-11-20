@@ -10,6 +10,7 @@ header_format = "{:<25} {:<15} {:<20} {:<20} {:<20} {:<20} {:<20}"
 
 class AhAnalyzer:
     item_stats: dict[int, ItemStat] = {} # item_id -> ItemStat
+    time_stamps: list[str] = []
 
     def __init__(self):
         # first read information about all items and create the item_stats dictionary
@@ -41,23 +42,33 @@ class AhAnalyzer:
             print("Reading file: ", file_name)
             dt = datetime.strptime(file_name, "auctions_%Y_%m_%d_%H_%M_%S.json.gz")
             time_stamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+            self.time_stamps.append(time_stamp)
             file_path = os.path.join(data_directory, file_name)
             response = read_json_from_file_compressed(file_path)
             auctions = response['auctions']
             self.add_auction_info(time_stamp, auctions)
 
     def get_latest_auctions(self):
-        time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print("getting latest auctions: ", time_stamp)
         ah_grinder = AhGrinder()
         connected_realm_id = 5220 # stitches eu hardcore realm id
         auction_house_id = 2 # alliance auction house id
         response = ah_grinder.get_auctions(connected_realm_id=connected_realm_id, auction_house_id=auction_house_id, save_response=False)
         response_json = response.json()
         latest_auctions = response_json['auctions']
-        print("last modified: ", response.headers['last-modified'])
-        # TODO: instead of printing time it was last modified print how many min ago that was
+
+        dt_now = datetime.utcnow()
+        time_stamp = dt_now.strftime("%Y-%m-%d %H:%M:%S")
+        self.time_stamps.append(time_stamp)
         self.add_auction_info(time_stamp, latest_auctions)
+
+        # print some information about the response
+        last_modified = response.headers['last-modified']
+        dt_last_modified = datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
+        time_since_last_modified = dt_now - dt_last_modified
+        minutes_since_last_modified, remaining_seconds = divmod(time_since_last_modified.seconds, 60)
+        print("latest auctions request: ", time_stamp)
+        print(f"last modified: {last_modified}")
+        print(f"time since last modified: {minutes_since_last_modified} minutes and {remaining_seconds} seconds")
 
     def add_auction_info(self, time_stamp: str, auctions: dict):
         for auction in auctions:
@@ -92,6 +103,8 @@ class AhAnalyzer:
         """
         item_responses = read_json_from_file_compressed("item_responses.json.gz")
 
+        # TODO: make sure we get item statistics for each time stamp even tho the item was not seen
+        # at that timestamp. This is important for the score calculation.ge fdaf
         for item_id, item in self.item_stats.items():
             item_id_str = str(item_id)
             # try to get the sell price and item name from the json file
@@ -114,7 +127,7 @@ class AhAnalyzer:
         items = []
 
         for item_id, item in self.item_stats.items():
-            if item.min_quantity > 10:
+            if item.min_quantity > 100:
                 items.append(item)
 
         # sort the items ids by the largest score, largest comes first
@@ -128,12 +141,13 @@ class AhAnalyzer:
 
     def print_item_statistics(self, item_name: str):
         for item in self.item_stats.values():
-            if item.name.lower() == item_name:
+            if item.name.lower() == item_name.lower():
                 item.print_statistics()
-                break
+                return
+        print(f"no item found with the name: {item_name}")
 
 
 if __name__ == '__main__':
     ah_analyzer = AhAnalyzer()
     ah_analyzer.print_items_with_highest_score()
-    ah_analyzer.print_item_statistics("devilsaur leather")
+    ah_analyzer.print_item_statistics("Savory deviate delight")

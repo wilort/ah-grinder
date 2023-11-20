@@ -10,6 +10,9 @@ min quantity is always at least one atm. make sure that each item has at least N
 maybe have a list of all item ids and scan the auction data for all items in this list. hence some items will have
 zero auctions and then this will be recorded for the analysis.
 
+in ah-grinder:
+instead of saving api request time in the file name. save the latest_modified time in the file name
+
 # Other info
 1. auctions are updated once every hour. The last_modified info the the auction api response has
 been seen to been varying number of minutes passed the hour. e.g. 4,5,17,18.

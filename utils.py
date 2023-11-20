@@ -57,7 +57,7 @@ def filter_files(files: list[str]) -> list[str]:
     filtered_files = []
     date_time_obj_x_days_ago = datetime.now() - timedelta(days=14)
     for file in files:
-        match = re.search(r'(\d{4}_\d{2}_\d{2}_18_\d{2}_\d{2})', file)
+        match = re.search(r'(\d{4}_\d{2}_\d{2}_21_\d{2}_\d{2})', file)
         if match:
             date_time_str = match.group(1)
             date_time_obj = datetime.strptime(date_time_str, '%Y_%m_%d_%H_%M_%S')

@@ -52,6 +52,9 @@ class ItemStat:
         self.median_quantity = round(statistics.median(self.quantities))
         self.max_quantity = max(self.quantities)
         self.latest_time_stamp = max(self.time_stamps)
+        #TODO this will just look at the latest time the quction was seen and 
+        # not the latest time the auction was updated.
+        #NEED TO FIX!
         self.latest_min_unit_price = self.min_unit_prices[-1]
         self.calculate_score()
         #self.calculate_score2()
