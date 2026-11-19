@@ -24,8 +24,20 @@ client_secret=your-client-secret
 .venv/bin/python fetch_forever_item_names.py
 ```
 
-The first script saves timestamped auction and commodity snapshots to
+The first script saves timestamped, gzip-compressed JSON snapshots of auctions and commodities to
 `data/auctions/`. The second rebuilds `data/forever_item_names.json` and reports
 name coverage for the latest saved snapshot. It uses Blizzard's Classic Era
 catalog and the [public EU Alliance PvP market feed](https://auctionhouse.tk.gg/data/)
 to fill gaps in Blizzard's Forever item data.
+
+## Extract a snapshot
+
+From the repo root, replace the example filename with your snapshot filename.
+This command keeps the compressed original.
+
+```bash
+gzip -dc data/auctions/eu-alliance-pvp-TIMESTAMP.json.gz > snapshot.json
+```
+
+The extracted JSON contains the original listings and values in compact form.
+The catalog script can read both `.json.gz` and older `.json` snapshots directly.

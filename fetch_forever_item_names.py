@@ -1,5 +1,6 @@
 """Refresh the English item-name catalog for WoW Forever."""
 
+import gzip
 import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -66,11 +67,16 @@ def fetch_search_catalog(session, namespace):
 
 def main():
     data_dir = PROJECT_DIR / "data"
-    snapshots = (data_dir / "auctions").glob("eu-alliance-pvp-*.json")
-    snapshot_path = max(snapshots, default=None)
+    auctions_dir = data_dir / "auctions"
+    snapshot_path = max(
+        (*auctions_dir.glob("eu-alliance-pvp-*.json"),
+         *auctions_dir.glob("eu-alliance-pvp-*.json.gz")),
+        default=None,
+    )
     observed = set()
     if snapshot_path is not None:
-        with snapshot_path.open(encoding="utf-8") as source:
+        open_snapshot = gzip.open if snapshot_path.suffix == ".gz" else open
+        with open_snapshot(snapshot_path, "rt", encoding="utf-8") as source:
             snapshot = json.load(source)
         observed = {
             row["item"]["id"]

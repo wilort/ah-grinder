@@ -1,5 +1,6 @@
-"""Download the WoW Forever EU Alliance PvP auction house as JSON."""
+"""Download the WoW Forever EU Alliance PvP auction house as gzip-compressed JSON."""
 
+import gzip
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,10 +56,11 @@ def main():
     output_dir = PROJECT_DIR / "data" / "auctions"
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output_path = output_dir / f"eu-alliance-pvp-{timestamp}.json"
-    with NamedTemporaryFile(mode="w", encoding="utf-8", dir=output_dir) as output:
-        json.dump(snapshot, output, indent=2)
-        output.write("\n")
+    output_path = output_dir / f"eu-alliance-pvp-{timestamp}.json.gz"
+    with NamedTemporaryFile(dir=output_dir) as output:
+        with gzip.open(output, "wt", encoding="utf-8", compresslevel=6) as compressed:
+            json.dump(snapshot, compressed, separators=(",", ":"))
+            compressed.write("\n")
         output.flush()
         output_path.hardlink_to(output.name)
 
