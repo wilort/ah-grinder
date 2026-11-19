@@ -1,35 +1,31 @@
 # ah-grinder
-For fetching auction house data in world of warcraft
 
-# ah-analyzer
-For analyzing auction house data in world of warcraft
+Download WoW Forever auction listings and build an English item-name catalog
+for the EU Alliance PvP market.
 
-# TODO
+## Setup
 
-min quantity is always at least one atm. make sure that each item has at least None auctions at every day.
-maybe have a list of all item ids and scan the auction data for all items in this list. hence some items will have
-zero auctions and then this will be recorded for the analysis.
-
-in ah-grinder:
-instead of saving api request time in the file name. save the latest_modified time in the file name
-
-# Other info
-1. auctions are updated once every hour. The last_modified info the the auction api response has
-been seen to been varying number of minutes passed the hour. e.g. 4,5,17,18.
-
-2. the command for copying from the pi is
-```
-scp pi@raspberrypi.local:~/auctions* data/.
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
-3. to copy from the pi and not overwrite existing files, use
-```
-rsync -av --ignore-existing pi@raspberrypi.local:~/auctions* data/
+Add your Battle.net API credentials to `.env` in the repo root.
+
+```dotenv
+client_id=your-client-id
+client_secret=your-client-secret
 ```
 
-explanation:
--av: Archive mode with verbose output.
---ignore-existing: Skip files that already exist at the destination.
-pi@raspberrypi.local:~/auctions*: Source path on the remote server. This assumes you are copying files matching the pattern auctions* from the home directory of the pi user on the Raspberry Pi.
-data/: Destination directory on your local machine.
-This rsync command will only copy files that don't already exist in the destination directory (data/), similar to the -n option in scp.
+## Fetch data
+
+```bash
+.venv/bin/python download_forever_auctions.py
+.venv/bin/python fetch_forever_item_names.py
+```
+
+The first script saves timestamped auction and commodity snapshots to
+`data/auctions/`. The second rebuilds `data/forever_item_names.json` and reports
+name coverage for the latest saved snapshot. It uses Blizzard's Classic Era
+catalog and the [public EU Alliance PvP market feed](https://auctionhouse.tk.gg/data/)
+to fill gaps in Blizzard's Forever item data.
