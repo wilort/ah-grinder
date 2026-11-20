@@ -1,4 +1,4 @@
-"""Refresh the English item-name catalog for WoW Forever."""
+"""Refresh the item information catalog for WoW Forever."""
 
 import gzip
 import json
@@ -27,16 +27,31 @@ def get_item_data(session, route, namespace=FOREVER_NAMESPACE, **params):
     )
 
 
-def english_name(item):
-    name = item.get("name")
+def localized_name(name):
     if isinstance(name, dict):
         return name.get(LOCALE) or name.get("en_GB")
     return name
 
 
+def item_info(item, source):
+    price = item.get("sell" if source == "auctionhouse.tk.gg" else "sell_price")
+    return {
+        "name": localized_name(item.get("name")),
+        "vendor_sell_copper": price,
+        "vendor_sell_source": source if price is not None else None,
+        "quality": localized_name(item.get("quality", {}).get("name")) or item.get("q"),
+        "item_class": localized_name(item.get("item_class", {}).get("name")) or item.get("cls"),
+    }
+
+
+def fill_missing(item, fallback):
+    for field, value in fallback.items():
+        if item[field] is None:
+            item[field] = value
+
+
 def fetch_search_catalog(session, namespace):
-    names = {}
-    nameless = set()
+    items = {}
     minimum_id = 1
     while True:
         response = get_item_data(
@@ -53,14 +68,10 @@ def fetch_search_catalog(session, namespace):
             if item_id < minimum_id:
                 raise ValueError(f"Item search returned IDs out of order for {namespace}")
             minimum_id = item_id + 1
-            name = english_name(item)
-            if name:
-                names[item_id] = name
-            else:
-                nameless.add(item_id)
+            items[item_id] = item_info(item, namespace)
 
         if not page.get("resultCountCapped") and page["pageCount"] <= 1:
-            return names, nameless
+            return items
         if not page["results"]:
             raise ValueError(f"Item search returned an empty capped page for {namespace}")
 
@@ -84,55 +95,53 @@ def main():
             for row in snapshot[group]["data"]["auctions"]
         }
 
+    # Fetch market metadata separately so the Blizzard token stays on its own session.
+    response = requests.get(MARKET_URL, timeout=30)
+    response.raise_for_status()
+    market = response.json()
+    if market["house"]["key"] != MARKET_KEY:
+        raise ValueError("The market feed returned the wrong auction house")
+    market_items = {
+        row["id"]: item_info(row, "auctionhouse.tk.gg") for row in market["items"]
+    }
+
     with requests.Session() as session:
         session.headers["Authorization"] = f"Bearer {create_access_token()}"
-        names, nameless = fetch_search_catalog(session, FOREVER_NAMESPACE)
-        classic_ids = set()
-        if (observed | nameless) - names.keys():
-            classic_names, _ = fetch_search_catalog(session, CLASSIC_NAMESPACE)
-            classic_ids = ((observed | nameless) - names.keys()) & classic_names.keys()
-            names.update({item_id: classic_names[item_id] for item_id in classic_ids})
+        items = fetch_search_catalog(session, FOREVER_NAMESPACE)
+        for item_id in observed | market_items.keys():
+            items.setdefault(item_id, item_info({}, FOREVER_NAMESPACE))
 
-        missing = (observed | nameless) - names.keys()
-        print(f"Checking {len(missing):,} remaining IDs against Forever item details.", flush=True)
-        for item_id in sorted(missing):
+        missing_details = {
+            item_id for item_id in observed
+            if items[item_id]["vendor_sell_copper"] is None
+            and market_items.get(item_id, {}).get("vendor_sell_copper") is None
+        }
+        print(f"Checking {len(missing_details):,} IDs against Forever item details.", flush=True)
+        for item_id in sorted(missing_details):
             response = get_item_data(session, f"item/{item_id}")
             if response.status_code == 404:
                 continue
             response.raise_for_status()
-            name = english_name(response.json())
-            if name:
-                names[item_id] = name
+            fill_missing(items[item_id], item_info(response.json(), FOREVER_NAMESPACE))
 
-    market_ids = set()
-    missing_snapshot = observed - names.keys()
-    if missing_snapshot:
-        # Keep the Blizzard bearer token on the Blizzard session.
-        response = requests.get(MARKET_URL, timeout=30)
-        response.raise_for_status()
-        market = response.json()
-        if market["house"]["key"] != MARKET_KEY:
-            raise ValueError("The market fallback returned the wrong auction house")
-        for item in market["items"]:
-            item_id = item["id"]
-            name = english_name(item)
-            if item_id in missing_snapshot and name:
-                names[item_id] = name
-                market_ids.add(item_id)
+        for item_id, info in market_items.items():
+            fill_missing(items[item_id], info)
+
+        nameless = {item_id for item_id, info in items.items() if not info["name"]}
+        if nameless:
+            classic = fetch_search_catalog(session, CLASSIC_NAMESPACE)
+            for item_id in nameless & classic.keys():
+                items[item_id]["name"] = classic[item_id]["name"]
 
     catalog = {
         "locale": LOCALE,
         "forever_namespace": FOREVER_NAMESPACE,
         "snapshot_checked": snapshot_path.name if snapshot_path else None,
-        "classic_era_fallback_ids": sorted(classic_ids),
-        "market_fallback_source": MARKET_URL,
-        "market_fallback_ids": sorted(market_ids),
-        "unresolved_forever_search_ids": sorted(nameless - names.keys()),
-        "unresolved_snapshot_ids": sorted(observed - names.keys()),
-        "names_by_id": dict(sorted(names.items())),
+        "market_source": MARKET_URL,
+        "items_by_id": dict(sorted(items.items())),
     }
     data_dir.mkdir(parents=True, exist_ok=True)
-    output_path = data_dir / "forever_item_names.json"
+    output_path = data_dir / "item_info.json"
     output = NamedTemporaryFile(mode="w", encoding="utf-8", dir=data_dir, delete=False)
     staged_path = Path(output.name)
     try:
@@ -143,9 +152,11 @@ def main():
     finally:
         staged_path.unlink(missing_ok=True)
 
-    print(f"Saved {len(names):,} names to {output_path}")
+    print(f"Saved {len(items):,} item records to {output_path}")
     if snapshot_path is not None:
-        print(f"Snapshot coverage: {len(observed & names.keys()):,} / {len(observed):,} item IDs")
+        named = sum(bool(items[item_id]["name"]) for item_id in observed)
+        priced = sum(items[item_id]["vendor_sell_copper"] is not None for item_id in observed)
+        print(f"Snapshot coverage: {named:,} names and {priced:,} vendor prices / {len(observed):,} item IDs")
 
 
 if __name__ == "__main__":

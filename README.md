@@ -1,6 +1,6 @@
 # ah-grinder
 
-Download WoW Forever auction listings and build an English item-name catalog
+Download WoW Forever auction listings and build an English item catalog
 for the EU Alliance PvP market.
 
 ## Setup
@@ -25,10 +25,13 @@ client_secret=your-client-secret
 ```
 
 The first script saves timestamped, gzip-compressed JSON snapshots of auctions and commodities to
-`data/auctions/`. The second rebuilds `data/forever_item_names.json` and reports
-name coverage for the latest saved snapshot. It uses Blizzard's Classic Era
-catalog and the [public EU Alliance PvP market feed](https://auctionhouse.tk.gg/data/)
-to fill gaps in Blizzard's Forever item data.
+`data/auctions/`. The second rebuilds `data/item_info.json` and reports name and vendor price
+coverage for the latest saved snapshot. Records in `items_by_id` contain the
+item name, quality, class, vendor payout per item in copper, and vendor price
+source. Unknown prices are `null` and explicit zero prices are preserved.
+Prices come from Blizzard’s Forever API or the
+[public EU Alliance PvP market feed](https://auctionhouse.tk.gg/data/).
+The Classic Era catalog supplies fallback names.
 
 ## Extract a snapshot
 
